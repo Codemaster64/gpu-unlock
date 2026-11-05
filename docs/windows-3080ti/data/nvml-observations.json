@@ -1,0 +1,205 @@
+{
+  "state": "STOCK after cold-power rollback",
+  "caveat": "Discrete sampling can miss brief events. Inconsistent counters do not dismiss the original active flag.",
+  "captures": {
+    "passive": {
+      "seconds_requested": 180,
+      "interval_seconds": null,
+      "gpus": {
+        "target": {
+          "thermal_samples": 0,
+          "masks": {
+            "1": 1789
+          },
+          "core_min": 44,
+          "core_max": 47,
+          "fields": {
+            "74": {
+              "initial_status": 0,
+              "initial_value": 19112762240,
+              "final_status": 0,
+              "final_value": 46988112320,
+              "delta": 27875350080
+            },
+            "75": {
+              "initial_status": 0,
+              "initial_value": 0,
+              "final_status": 0,
+              "final_value": 0,
+              "delta": 0
+            },
+            "82": {
+              "initial_status": 3,
+              "initial_value": null,
+              "final_status": 3,
+              "final_value": null,
+              "delta": null
+            },
+            "269": {
+              "initial_status": 0,
+              "initial_value": 15748565248,
+              "final_status": 0,
+              "final_value": 42448630432,
+              "delta": 26700065184
+            },
+            "270": {
+              "initial_status": 0,
+              "initial_value": 0,
+              "final_status": 0,
+              "final_value": 0,
+              "delta": 0
+            }
+          }
+        },
+        "secondary": {
+          "thermal_samples": 0,
+          "masks": {
+            "1": 1789
+          },
+          "core_min": 45,
+          "core_max": 49,
+          "fields": {
+            "74": {
+              "initial_status": 0,
+              "initial_value": 8888483200,
+              "final_status": 0,
+              "final_value": 8888483200,
+              "delta": 0
+            },
+            "75": {
+              "initial_status": 0,
+              "initial_value": 0,
+              "final_status": 0,
+              "final_value": 0,
+              "delta": 0
+            },
+            "82": {
+              "initial_status": 3,
+              "initial_value": null,
+              "final_status": 3,
+              "final_value": null,
+              "delta": null
+            },
+            "269": {
+              "initial_status": 0,
+              "initial_value": 0,
+              "final_status": 0,
+              "final_value": 0,
+              "delta": 0
+            },
+            "270": {
+              "initial_status": 0,
+              "initial_value": 0,
+              "final_status": 0,
+              "final_value": 0,
+              "delta": 0
+            }
+          }
+        }
+      },
+      "interval_note": "Original header omitted interval; protocol used the original observer default of 0.1 seconds."
+    },
+    "synchronized_matrix": {
+      "seconds_requested": 25,
+      "interval_seconds": 0.01,
+      "gpus": {
+        "target": {
+          "thermal_samples": 0,
+          "masks": {
+            "1": 1501,
+            "0": 393,
+            "4": 537
+          },
+          "core_min": 47,
+          "core_max": 67,
+          "fields": {
+            "74": {
+              "initial_status": 0,
+              "initial_value": 78078508832,
+              "final_status": 0,
+              "final_value": 78698268352,
+              "delta": 619759520
+            },
+            "75": {
+              "initial_status": 0,
+              "initial_value": 0,
+              "final_status": 0,
+              "final_value": 0,
+              "delta": 0
+            },
+            "82": {
+              "initial_status": 3,
+              "initial_value": null,
+              "final_status": 3,
+              "final_value": null,
+              "delta": null
+            },
+            "269": {
+              "initial_status": 0,
+              "initial_value": 66300760992,
+              "final_status": 0,
+              "final_value": 66300760992,
+              "delta": 0
+            },
+            "270": {
+              "initial_status": 0,
+              "initial_value": 0,
+              "final_status": 0,
+              "final_value": 0,
+              "delta": 0
+            }
+          }
+        },
+        "secondary": {
+          "thermal_samples": 0,
+          "masks": {
+            "1": 2431
+          },
+          "core_min": 53,
+          "core_max": 54,
+          "fields": {
+            "74": {
+              "initial_status": 0,
+              "initial_value": 8888483200,
+              "final_status": 0,
+              "final_value": 8888483200,
+              "delta": 0
+            },
+            "75": {
+              "initial_status": 0,
+              "initial_value": 0,
+              "final_status": 0,
+              "final_value": 0,
+              "delta": 0
+            },
+            "82": {
+              "initial_status": 3,
+              "initial_value": null,
+              "final_status": 3,
+              "final_value": null,
+              "delta": null
+            },
+            "269": {
+              "initial_status": 0,
+              "initial_value": 0,
+              "final_status": 0,
+              "final_value": 0,
+              "delta": 0
+            },
+            "270": {
+              "initial_status": 0,
+              "initial_value": 0,
+              "final_status": 0,
+              "final_value": 0,
+              "delta": 0
+            }
+          }
+        }
+      },
+      "matrix_workload_seconds": 7.209089517593384,
+      "matrix_cases_completed": 8,
+      "matrix_verdict": "PASS",
+      "coverage_note": "Supervisor started observer before workload and both completed; earlier nonoverlapping trace excluded."
+    }
+  }
+}

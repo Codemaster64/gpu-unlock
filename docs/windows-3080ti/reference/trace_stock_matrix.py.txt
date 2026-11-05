@@ -1,0 +1,126 @@
+"""Bounded stock/unlocked diagnostic, with continuous fail-closed NVML supervision."""
+import argparse
+import json
+from pathlib import Path
+import re
+import subprocess
+import sys
+import time
+
+
+def stop_owned(proc):
+    if proc is not None and proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=5)
+
+
+def progress_heartbeat(path, clock=time.monotonic):
+    # Windows may defer open-file mtime updates. Appended bytes are the heartbeat.
+    previous_size = path.stat().st_size
+    changed_at = clock()
+
+    def age():
+        nonlocal previous_size, changed_at
+        size = path.stat().st_size
+        now = clock()
+        if size != previous_size:
+            previous_size, changed_at = size, now
+        return now - changed_at
+
+    return age
+
+
+def supervise(observer, benchmark, deadline, heartbeat_age, clock=time.monotonic, sleep=time.sleep):
+    try:
+        while True:
+            obs = observer.poll()
+            gpu = benchmark.poll()
+            if gpu is None and obs is not None:
+                raise RuntimeError('Observer ended while workload remained alive')
+            if obs not in (None, 0):
+                raise RuntimeError('Observer failed: thermal flag or telemetry failure')
+            if gpu not in (None, 0):
+                raise RuntimeError('Benchmark failed')
+            if obs == 0 and gpu == 0:
+                return
+            if heartbeat_age() > 3:
+                raise RuntimeError('Observer heartbeat stale; stop workload')
+            if clock() > deadline:
+                raise RuntimeError('Bounded diagnostic timed out')
+            sleep(0.05)
+    except BaseException:
+        stop_owned(benchmark)
+        stop_owned(observer)
+        raise
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--phase', choices=['stock', 'unlocked', 'recovered'], default='stock')
+    ap.add_argument('--prefix', default='synchronized')
+    args = ap.parse_args()
+    if not re.fullmatch('[a-z0-9-]{1,60}', args.prefix):
+        raise ValueError('Simple diagnostic file prefix required')
+    root = Path(__file__).resolve().parent
+    out = root / 'daily-use'
+    trace = out / (args.prefix + '-stock.jsonl')
+    record = {'phase': args.phase + ' diagnostic; wrapper performs no firmware transaction',
+              'started': time.time(), 'heartbeat_stale_seconds': 3,
+              'manual_hwmonitor_required': {'memory_cutoff_c': 90, 'hotspot_cutoff_c': 95}}
+    # Unsupported NVML memory/hotspot sensors require separate supervised HWMonitor readings.
+    from gpu_benchmark import checked_snapshot
+    initial = checked_snapshot()
+    if args.phase != 'stock':
+        secondary = [r for r in initial if r['uuid'] == 'GPU-SECONDARY']
+        if len(secondary) != 1 or float(secondary[0]['power.limit']) != 110:
+            raise RuntimeError('Matched secondary 110 W limit required')
+    record['initial'] = initial
+    observer = benchmark = None
+    try:
+        if trace.exists():
+            raise RuntimeError('Refusing to overwrite this diagnostic capture')
+        with (out / (args.prefix + '-observer.log')).open('wb') as obslog, (out / (args.prefix + '-gpu.log')).open('wb') as gpulog:
+            observer = subprocess.Popen([sys.executable, '-u', str(root / 'observe_nvml.py'),
+                '--seconds', '25', '--interval', '0.01', '--abort-on-thermal', '--output', str(trace)],
+                stdout=obslog, stderr=subprocess.STDOUT, creationflags=subprocess.CREATE_NO_WINDOW)
+            deadline = time.monotonic() + 60
+            while True:
+                if observer.poll() is not None:
+                    raise RuntimeError('Observer exited before workload readiness')
+                if time.monotonic() > deadline:
+                    raise RuntimeError('Observer readiness timeout')
+                if trace.exists():
+                    text = trace.read_text(encoding='utf-8')
+                    if '\n' in text:
+                        meta = json.loads(text.splitlines()[0])
+                        if meta.get('event') == 'metadata' and meta.get('read_only'):
+                            break
+                time.sleep(0.05)
+            record['observer_ready'] = time.time()
+            record['benchmark_started'] = time.time()
+            benchmark = subprocess.Popen([str(root / 'benchmark-venv/Scripts/python.exe'),
+                str(root / 'gpu_benchmark.py'), '--phase', args.phase, '--output', str(out / (args.prefix + '-gpu.json'))],
+                stdout=gpulog, stderr=subprocess.STDOUT, creationflags=subprocess.CREATE_NO_WINDOW)
+            print(json.dumps({'event': 'synchronized_start', 'observer_pid': observer.pid,
+                              'benchmark_pid': benchmark.pid}), flush=True)
+            supervise(observer, benchmark, deadline, progress_heartbeat(trace))
+            record['verdict'] = 'PASS'
+    except BaseException as exc:
+        record['verdict'] = 'FAIL'
+        record['error'] = str(exc)
+        raise
+    finally:
+        for proc in (benchmark, observer):
+            stop_owned(proc)
+        record['children_exited'] = all(p is None or p.poll() is not None for p in (benchmark, observer))
+        record['completed'] = time.time()
+        (out / (args.prefix + '-run.json')).write_text(json.dumps(record, indent=2), encoding='utf-8')
+        print(json.dumps(record), flush=True)
+
+
+if __name__ == '__main__':
+    main()

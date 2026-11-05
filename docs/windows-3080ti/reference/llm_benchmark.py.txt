@@ -1,0 +1,201 @@
+"""Bounded synthetic API benchmark using the owner's existing local model profile."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import queue
+import re
+import shlex
+import socket
+import subprocess
+import threading
+import time
+import urllib.request
+
+from gpu_benchmark import checked_snapshot, FIELDS
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--phase', choices=['stock', 'unlocked', 'recovered'], required=True)
+    ap.add_argument('--output', type=Path, required=True)
+    ap.add_argument('--prepare-only', action='store_true')
+    args = ap.parse_args()
+    import yaml  # Existing host package; no changes to the user's inference runtime.
+    config = Path(r'<LOCAL_CONFIG>/config.yaml')
+    data = yaml.safe_load(config.read_text(encoding='utf-8'))
+    command = data['models']['LOCAL_MODEL_PROFILE']['cmd']
+    for _ in range(4):
+        for key, value in data.get('macros', {}).items():
+            if isinstance(value, (str, int, float)):
+                command = command.replace('${' + key + '}', str(value))
+    command = command.replace('${PORT}', '10012')
+    if '${' in command:
+        raise RuntimeError('Unresolved macro; no server launched')
+    argv = [v.strip('"') for v in shlex.split(command, posix=False)]
+    expected = Path(r'<LOCAL_RUNTIME>/llama-server.exe')
+    if Path(argv[0]).resolve() != expected.resolve():
+        raise RuntimeError('Unexpected inference executable')
+    allowed = {'-m', '--alias', '--host', '--port', '-c', '-ngl', '-fa', '-np', '--jinja',
+               '-ctk', '-ctv', '-ctkd', '-ctvd', '-sm', '-ts', '--spec-type',
+               '--spec-draft-n-max', '--temp', '--top-k', '--top-p', '--min-p', '--reasoning-budget'}
+    seen = {}
+    i = 1
+    while i < len(argv):
+        flag = argv[i]
+        if flag not in allowed or flag in seen:
+            raise RuntimeError('Unexpected/duplicate profile option: ' + flag)
+        if flag == '--jinja':
+            seen[flag] = True
+            i += 1
+        else:
+            if i + 1 >= len(argv):
+                raise RuntimeError('Missing option argument')
+            seen[flag] = argv[i + 1]
+            i += 2
+    if seen.get('--host') != '127.0.0.1' or seen.get('--port') != '10012':
+        raise RuntimeError('Benchmark must use its isolated local port')
+    model = Path(seen['-m'])
+    expected_model = Path(r'<LOCAL_MODEL>/model.gguf')
+    if model.resolve() != expected_model.resolve():
+        raise RuntimeError('Unexpected model')
+    fixture_path = Path(__file__).with_name('llm-fixtures.json')
+    fixture = json.loads(fixture_path.read_text(encoding='utf-8'))
+    result = {'phase': args.phase, 'options': seen, 'model_bytes': model.stat().st_size,
+              'model_mtime_ns': model.stat().st_mtime_ns,
+              'server_sha256': hashlib.sha256(expected.read_bytes()).hexdigest(),
+              'fixtures_sha256': hashlib.sha256(fixture_path.read_bytes()).hexdigest(),
+              'cublaslt_disable_cpu_instructions_mask': '1', 'runs': [], 'snapshots': [],
+              'warmup_runs_per_case': 2, 'identical_prompt_per_case': True,
+              'sampling': fixture['sampling'], 'started': time.time()}
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    if args.prepare_only:
+        print(json.dumps({'preparation': 'PASS', 'profile': 'LOCAL_MODEL_PROFILE', 'options': seen}, indent=2))
+        return
+    # Refuse competition with another model server; never interrupt user jobs.
+    active = subprocess.check_output(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command',
+        "@(Get-Process -Name llama-server,ollama_llama_server -ErrorAction SilentlyContinue).Count"],
+        text=True, creationflags=subprocess.CREATE_NO_WINDOW).strip()
+    if active != '0':
+        raise RuntimeError('Another inference server is running; no competing benchmark started')
+    with socket.socket() as probe:
+        probe.bind(('127.0.0.1', 10012))
+    initial = checked_snapshot()
+    result['initial'] = initial
+    by_uuid = {r['uuid']: r for r in initial}
+
+    def checkpoint():
+        snap = checked_snapshot()
+        for row in snap:
+            before = by_uuid[row['uuid']]
+            for field in FIELDS[-2:]:
+                if before[field].isdigit() and row[field].isdigit() and int(row[field]) > int(before[field]):
+                    raise RuntimeError('Thermal counter increased; stop inference')
+        result['snapshots'].append({'time': time.time(), 'gpus': snap})
+        args.output.write_text(json.dumps(result, indent=2), encoding='utf-8')
+
+    base = 'http://127.0.0.1:10012'
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+    def request(path, body=None, timeout=2):
+        payload = None if body is None else json.dumps(body).encode()
+        req = urllib.request.Request(base + path, data=payload, headers={'Content-Type': 'application/json'})
+        with opener.open(req, timeout=timeout) as response:
+            return json.load(response)
+
+    env = os.environ.copy()
+    env['CUDA_VISIBLE_DEVICES'] = ('GPU-TARGET,'
+                                   'GPU-SECONDARY')
+    env['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
+    env['CUBLASLT_DISABLE_CPU_INSTRUCTIONS_MASK'] = '1'
+    process = None
+    log_path = args.output.with_suffix('.server.log')
+    try:
+        with log_path.open('wb') as log:
+            process = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                                       env=env, creationflags=subprocess.CREATE_NO_WINDOW)
+            result['server_pid'] = process.pid
+            print(json.dumps({'event': 'loading', 'pid': process.pid, 'port': 10012}), flush=True)
+            deadline = time.monotonic() + 180
+            while True:
+                checkpoint()
+                if process.poll() is not None:
+                    raise RuntimeError('Benchmark server exited during load; inspect its local log')
+                if time.monotonic() > deadline:
+                    raise RuntimeError('Model load exceeded bounded time')
+                try:
+                    if request('/health').get('status') == 'ok':
+                        break
+                except Exception:
+                    pass
+                time.sleep(1)
+            result['load_seconds'] = time.time() - result['started']
+            props = request('/props')
+            if Path(props.get('model_path', '')).resolve() != model.resolve():
+                raise RuntimeError('Loaded model identity mismatch')
+            result['server_build'] = props.get('build_info')
+            result['actual_speculative'] = props.get('default_generation_settings', {}).get('speculative')
+            print(json.dumps({'event': 'ready', 'load_seconds': result['load_seconds']}), flush=True)
+            for name in ('short', 'long'):
+                # Warm adaptive speculation on identical input, then measure three runs.
+                for run in (-2, -1, 0, 1, 2):
+                    checkpoint()
+                    slots = request('/slots')
+                    if any(s.get('is_processing') for s in slots):
+                        raise RuntimeError('Benchmark server unexpectedly busy')
+                    body = dict(fixture['sampling'])
+                    body.update(prompt=f'Benchmark case {name}.\n' + fixture['prompts'][name],
+                                id_slot=0, stream=False)
+                    mailbox = queue.Queue()
+
+                    def complete():
+                        request_start = time.monotonic()
+                        try:
+                            response = request('/completion', body, timeout=120)
+                            mailbox.put((True, response, time.monotonic() - request_start))
+                        except Exception as exc:
+                            mailbox.put((False, str(exc), time.monotonic() - request_start))
+
+                    start = time.monotonic()
+                    threading.Thread(target=complete, daemon=True).start()
+                    while mailbox.empty():
+                        checkpoint()
+                        if process.poll() is not None or time.monotonic() - start > 125:
+                            raise RuntimeError('Inference stopped or exceeded bounded time')
+                        time.sleep(1)
+                    ok, response, request_seconds = mailbox.get()
+                    if not ok:
+                        raise RuntimeError('Completion failed: ' + response)
+                    timings = response.get('timings')
+                    if not timings or timings.get('predicted_n') != fixture['sampling']['n_predict']:
+                        raise RuntimeError('Missing timings or generation length mismatch')
+                    if timings.get('cache_n', 0) != 0:
+                        raise RuntimeError('Prompt caching would invalidate the comparison')
+                    item = {'case': name, 'run': run, 'warmup': run < 0,
+                            'wall_seconds': request_seconds, 'timings': timings,
+                            'content_sha256': hashlib.sha256(response.get('content', '').encode()).hexdigest()}
+                    result['runs'].append(item)
+                    checkpoint()
+                    print(json.dumps(item), flush=True)
+            result['verdict'] = 'PASS'
+    except Exception as exc:
+        result['verdict'] = 'FAIL'
+        result['error'] = str(exc)
+        raise
+    finally:
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+        result['server_exited'] = process is None or process.poll() is not None
+        result['completed'] = time.time()
+        args.output.write_text(json.dumps(result, indent=2), encoding='utf-8')
+    print('Bounded LLM benchmark: PASS; task-created server stopped', flush=True)
+
+
+if __name__ == '__main__':
+    main()

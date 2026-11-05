@@ -1,0 +1,25 @@
+{
+  "transformation": "Device UUIDs, bus addresses, private profile and user paths replaced; no guard or numerical logic changed.",
+  "files": [
+    {
+      "path": "reference/gpu_benchmark.py.txt",
+      "sha256": "8a8f3060409f7794e9e882233b3615a60a37b4b48b1d3039452bce04863e8984"
+    },
+    {
+      "path": "reference/observe_nvml.py.txt",
+      "sha256": "5618c4e9ca0cf9f3715a8dad972a8b2b7f109872cc4a258f3df56ef604cb4779"
+    },
+    {
+      "path": "reference/trace_stock_matrix.py.txt",
+      "sha256": "ba688f8a134b2cae29d180a319b3ed3962e5ec5018fd41d9fc96c82699c67747"
+    },
+    {
+      "path": "reference/test_diagnostic_guards.py.txt",
+      "sha256": "b536ba23ccfa2e9012f59c1e9ed8c7e9becd967f04a8f8d29648ba50cf7dee13"
+    },
+    {
+      "path": "reference/llm_benchmark.py.txt",
+      "sha256": "0297e00c8e359b0df7774a4d5fe5474741bb4009eddd5bbd91ef0bce5cbe349c"
+    }
+  ]
+}

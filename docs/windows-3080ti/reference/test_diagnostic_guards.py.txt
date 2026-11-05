@@ -1,0 +1,135 @@
+"""CPU-only regression checks for diagnostic stop and telemetry failure paths."""
+import copy
+from pathlib import Path
+import tempfile
+import unittest
+
+from observe_nvml import validate_snapshot
+from trace_stock_matrix import progress_heartbeat, supervise
+
+
+class Clock:
+    now = 0
+
+    def read(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+class Process:
+    def __init__(self, clock, end, code=0):
+        self.clock, self.end, self.code = clock, end, code
+        self.terminated = False
+
+    def poll(self):
+        return -15 if self.terminated else self.code if self.clock.now >= self.end else None
+
+    def terminate(self):
+        self.terminated = True
+
+    def wait(self, timeout):
+        assert self.poll() is not None
+
+
+class SupervisionTests(unittest.TestCase):
+    def run_case(self, observer_end, benchmark_end, observer_code=0, benchmark_code=0, age=0, deadline=5):
+        clock = Clock()
+        observer = Process(clock, observer_end, observer_code)
+        benchmark = Process(clock, benchmark_end, benchmark_code)
+        return clock, observer, benchmark, lambda: supervise(observer, benchmark, deadline,
+            lambda: age, clock=clock.read, sleep=clock.sleep)
+
+    def test_complete_workload_is_covered_until_observer_finishes(self):
+        clock, observer, benchmark, run = self.run_case(2, 1)
+        run()
+        self.assertGreaterEqual(clock.now, 2)
+        self.assertFalse(benchmark.terminated)
+
+    def test_successful_observer_expiry_still_stops_live_workload(self):
+        _, _, benchmark, run = self.run_case(1, 3)
+        with self.assertRaisesRegex(RuntimeError, 'Observer ended'):
+            run()
+        self.assertTrue(benchmark.terminated)
+
+    def test_failed_observer_stops_workload(self):
+        _, _, benchmark, run = self.run_case(1, 3, observer_code=1)
+        with self.assertRaises(RuntimeError):
+            run()
+        self.assertTrue(benchmark.terminated)
+
+    def test_workload_failure_stops_observer(self):
+        _, observer, _, run = self.run_case(3, 1, benchmark_code=1)
+        with self.assertRaisesRegex(RuntimeError, 'Benchmark failed'):
+            run()
+        self.assertTrue(observer.terminated)
+
+    def test_stale_heartbeat_stops_both(self):
+        _, observer, benchmark, run = self.run_case(3, 3, age=4)
+        with self.assertRaisesRegex(RuntimeError, 'heartbeat stale'):
+            run()
+        self.assertTrue(observer.terminated and benchmark.terminated)
+
+    def test_timeout_stops_both(self):
+        _, observer, benchmark, run = self.run_case(3, 3, deadline=0.1)
+        with self.assertRaisesRegex(RuntimeError, 'timed out'):
+            run()
+        self.assertTrue(observer.terminated and benchmark.terminated)
+
+    def test_heartbeat_tracks_appended_bytes_on_monotonic_clock(self):
+        clock = Clock()
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'trace'
+            path.write_text('metadata')
+            age = progress_heartbeat(path, clock.read)
+            clock.now = 2
+            self.assertEqual(age(), 2)
+            with path.open('a') as stream:
+                stream.write('\nsample')
+                stream.flush()
+                self.assertEqual(age(), 0)
+            clock.now = 6
+            self.assertEqual(age(), 4)
+
+
+class TelemetryTests(unittest.TestCase):
+    def setUp(self):
+        self.snap = {k: {'status': 0, 'value': 1} for k in
+                     ('core_c', 'pstate', 'power_mw', 'graphics_mhz', 'memory_mhz', 'utilization')}
+        self.snap['core_c']['value'] = 42
+        self.snap['field_query_status'] = 0
+        self.snap['fields'] = {i: {'status': 0, 'value': 0, 'timestamp_us': 100000000}
+                               for i in ('74', '269', '270')}
+        self.snap['fields']['82'] = {'status': 3, 'value': None}
+
+    def test_explicitly_unsupported_memory_is_not_a_zero_temperature(self):
+        validate_snapshot(self.snap, now=100)
+        self.assertIsNone(self.snap['fields']['82']['value'])
+
+    def test_required_sensor_failures_stop(self):
+        for key in ('core_c', 'power_mw', 'pstate', 'graphics_mhz', 'memory_mhz', 'utilization'):
+            with self.subTest(sensor=key):
+                snap = copy.deepcopy(self.snap)
+                snap[key]['status'] = 3
+                with self.assertRaisesRegex(RuntimeError, 'Required telemetry failed'):
+                    validate_snapshot(snap, now=100)
+
+    def test_stale_counter_snapshot_stops(self):
+        self.snap['fields']['269']['timestamp_us'] = 96000000
+        with self.assertRaisesRegex(RuntimeError, 'stale'):
+            validate_snapshot(self.snap, now=100)
+
+    def test_core_cutoff_is_unchanged(self):
+        self.snap['core_c']['value'] = 80
+        with self.assertRaisesRegex(RuntimeError, 'core-temperature cutoff'):
+            validate_snapshot(self.snap, now=100)
+
+    def test_supported_memory_cutoff_is_unchanged(self):
+        self.snap['fields']['82'] = {'status': 0, 'value': 90}
+        with self.assertRaisesRegex(RuntimeError, 'memory-temperature cutoff'):
+            validate_snapshot(self.snap, now=100)
+
+
+if __name__ == '__main__':
+    unittest.main()

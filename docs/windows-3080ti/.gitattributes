@@ -1,0 +1,4 @@
+# Preserve recorded source/fixture byte hashes on Windows and in Git blobs.
+* -text whitespace=cr-at-eol
+# A stored unified diff has single-space context lines by definition.
+reference/lockfile-metadata-fix.diff whitespace=-blank-at-eol,cr-at-eol

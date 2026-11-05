@@ -1,0 +1,208 @@
+"""Passive NVML observation only: no CUDA context, workload, setter or driver install."""
+import argparse
+import ctypes as c
+import datetime
+import json
+from pathlib import Path
+import time
+
+UUIDS = ['GPU-TARGET',
+         'GPU-SECONDARY']
+
+
+class Value(c.Union):
+    _fields_ = [('d', c.c_double), ('ui', c.c_uint), ('ul', c.c_ulong),
+                ('ull', c.c_ulonglong), ('sll', c.c_longlong), ('si', c.c_int), ('us', c.c_ushort)]
+
+
+class Field(c.Structure):
+    _fields_ = [('fieldId', c.c_uint), ('scopeId', c.c_uint),
+                ('timestamp', c.c_longlong), ('latencyUsec', c.c_longlong),
+                ('valueType', c.c_uint), ('nvmlReturn', c.c_int), ('value', Value)]
+
+
+class Utilization(c.Structure):
+    _fields_ = [('gpu', c.c_uint), ('memory', c.c_uint)]
+
+
+def validate_snapshot(snap, now=None):
+    """Fail closed on this machine's required sensors; memory may be explicitly unsupported."""
+    now = time.time() if now is None else now
+
+    def fail(message):
+        raise RuntimeError(message + '; telemetry=' + json.dumps(snap))
+
+    for key in ('core_c', 'pstate', 'power_mw', 'graphics_mhz', 'memory_mhz', 'utilization'):
+        if snap.get(key, {}).get('status') != 0:
+            fail('Required telemetry failed: ' + key)
+    if snap.get('field_query_status') != 0:
+        fail('Required field query failed')
+    for field_id in ('74', '269', '270'):
+        item = snap.get('fields', {}).get(field_id, {})
+        if item.get('status') != 0 or not isinstance(item.get('value'), (int, float)):
+            fail('Required counter telemetry failed: ' + field_id)
+        if abs(item.get('timestamp_us', 0) / 1e6 - now) > 3:
+            fail('Required counter timestamp is stale: ' + field_id)
+    memory = snap.get('fields', {}).get('82', {})
+    if memory.get('status') not in (0, 3):  # NVML_ERROR_NOT_SUPPORTED is an explicit capability result.
+        fail('Unexpected memory sensor failure')
+    core = snap['core_c'].get('value')
+    if not isinstance(core, (int, float)) or not 0 <= core <= 130:
+        fail('Invalid core-temperature reading')
+    if core >= 80:
+        fail('Conservative core-temperature cutoff reached')
+    if memory.get('status') == 0:
+        value = memory.get('value')
+        if not isinstance(value, (int, float)) or not 0 <= value <= 150:
+            fail('Invalid memory-temperature reading')
+        if value >= 90:
+            fail('Conservative memory-temperature cutoff reached')
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--seconds', type=int, default=180, choices=range(1, 301))
+    ap.add_argument('--interval', type=float, default=0.1)
+    ap.add_argument('--abort-on-thermal', action='store_true')
+    ap.add_argument('--output', type=Path, required=True)
+    args = ap.parse_args()
+    if not 0.005 <= args.interval <= 0.5:
+        raise ValueError('Read-only observation interval must be 0.005–0.5 seconds')
+    if c.sizeof(Field) != 40 or c.sizeof(Value) != 8:
+        raise RuntimeError('Unexpected public NVML ABI layout')
+    lib = c.WinDLL(r'C:\Windows\System32\nvml.dll')
+
+    def bind(name, argtypes):
+        fn = getattr(lib, name)
+        fn.argtypes = argtypes
+        fn.restype = c.c_int
+        return fn
+
+    init = bind('nvmlInit_v2', [])
+    shutdown = bind('nvmlShutdown', [])
+    handle = bind('nvmlDeviceGetHandleByUUID', [c.c_char_p, c.POINTER(c.c_void_p)])
+    name = bind('nvmlDeviceGetName', [c.c_void_p, c.c_char_p, c.c_uint])
+    temperature = bind('nvmlDeviceGetTemperature', [c.c_void_p, c.c_uint, c.POINTER(c.c_uint)])
+    threshold = bind('nvmlDeviceGetTemperatureThreshold', [c.c_void_p, c.c_uint, c.POINTER(c.c_uint)])
+    state = bind('nvmlDeviceGetPerformanceState', [c.c_void_p, c.POINTER(c.c_uint)])
+    power = bind('nvmlDeviceGetPowerUsage', [c.c_void_p, c.POINTER(c.c_uint)])
+    clock = bind('nvmlDeviceGetClockInfo', [c.c_void_p, c.c_uint, c.POINTER(c.c_uint)])
+    util = bind('nvmlDeviceGetUtilizationRates', [c.c_void_p, c.POINTER(Utilization)])
+    fields = bind('nvmlDeviceGetFieldValues', [c.c_void_p, c.c_int, c.POINTER(Field)])
+    mask_fn = 'nvmlDeviceGetCurrentClocksEventReasons'
+    if not hasattr(lib, mask_fn):
+        mask_fn = 'nvmlDeviceGetCurrentClocksThrottleReasons'
+    mask = bind(mask_fn, [c.c_void_p, c.POINTER(c.c_ulonglong)])
+    if init() != 0:
+        raise RuntimeError('NVML initialization failed')
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    handles = []
+    handle_uuid = {}
+    counts = {uuid: {'thermal_samples': 0, 'masks': {}, 'core_min': 999, 'core_max': 0} for uuid in UUIDS}
+
+    def uint(fn, gpu, *extra):
+        value = c.c_uint()
+        status = fn(gpu, *extra, c.byref(value))
+        return {'status': status, 'value': value.value if status == 0 else None}
+
+    def snapshot(gpu):
+        result = {'uuid': handle_uuid[gpu.value], 'core_c': uint(temperature, gpu, 0), 'pstate': uint(state, gpu),
+                  'power_mw': uint(power, gpu), 'graphics_mhz': uint(clock, gpu, 0),
+                  'memory_mhz': uint(clock, gpu, 2)}
+        usage = Utilization()
+        status = util(gpu, c.byref(usage))
+        result['utilization'] = {'status': status, 'gpu': usage.gpu, 'memory': usage.memory} if status == 0 else {'status': status}
+        # Field IDs/types are from NVIDIA's public nvml.h; unsuccessful values are never interpreted.
+        ids = [74, 75, 82, 269, 270]
+        values = (Field * len(ids))()
+        for item, field_id in zip(values, ids):
+            item.fieldId = field_id
+        status = fields(gpu, len(ids), values)
+        result['field_query_status'] = status
+        result['fields'] = {}
+        if status == 0:
+            members = {0: 'd', 1: 'ui', 2: 'ul', 3: 'ull', 4: 'sll', 5: 'si', 6: 'us'}
+            for item in values:
+                value = None
+                if item.nvmlReturn == 0 and item.valueType in members:
+                    value = getattr(item.value, members[item.valueType])
+                result['fields'][str(item.fieldId)] = {'status': item.nvmlReturn,
+                    'value_type': item.valueType, 'value': value, 'timestamp_us': item.timestamp}
+        validate_snapshot(result)
+        return result
+
+    try:
+        metadata = {'event': 'metadata', 'read_only': True, 'mask_api': mask_fn, 'seconds': args.seconds,
+                    'interval_seconds': args.interval,
+                    'core_cutoff_c': 80, 'memory_cutoff_c_if_supported': 90,
+                    'manual_hwmonitor_required': {'memory_cutoff_c': 90, 'hotspot_cutoff_c': 95},
+                    'field_ids': {'74': 'power_policy', '75': 'legacy_thermal_policy', '82': 'memory_temperature',
+                                  '269': 'software_thermal_counter_ns', '270': 'hardware_thermal_counter_ns'}, 'gpus': []}
+        for uuid in UUIDS:
+            gpu = c.c_void_p()
+            if handle(uuid.encode(), c.byref(gpu)) != 0 or not gpu.value:
+                raise RuntimeError('GPU handle unavailable: ' + uuid)
+            buf = c.create_string_buffer(96)
+            if name(gpu, buf, len(buf)) != 0:
+                raise RuntimeError('GPU identity read failed')
+            handles.append((uuid, gpu))
+            handle_uuid[gpu.value] = uuid
+            metadata['gpus'].append({'uuid': uuid, 'name': buf.value.decode(),
+                'thresholds_c': {str(i): uint(threshold, gpu, i) for i in range(8)}, 'initial': snapshot(gpu)})
+        with args.output.open('w', encoding='utf-8') as out:
+            out.write(json.dumps(metadata) + '\n')
+            print(json.dumps(metadata), flush=True)
+            started = time.monotonic()
+            previous = {}
+            last_full = {}
+            heartbeat = started
+            while time.monotonic() - started < args.seconds:
+                now = time.monotonic()
+                for uuid, gpu in handles:
+                    bits = c.c_ulonglong()
+                    status = mask(gpu, c.byref(bits))
+                    if status != 0:
+                        raise RuntimeError('Raw event-reason query failed: ' + str(status))
+                    active = bits.value
+                    stats = counts[uuid]
+                    stats['masks'][str(active)] = stats['masks'].get(str(active), 0) + 1
+                    is_thermal = bool(active & 0x60)
+                    if is_thermal:
+                        stats['thermal_samples'] += 1
+                    if previous.get(uuid) != active or is_thermal or now - last_full.get(uuid, 0) >= 1:
+                        snap = snapshot(gpu)
+                        core = snap['core_c']['value']
+                        if core is not None:
+                            stats['core_min'] = min(stats['core_min'], core)
+                            stats['core_max'] = max(stats['core_max'], core)
+                        record = {'event': 'sample', 'utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                                  'elapsed': now - started, 'uuid': uuid, 'mask': active,
+                                  'software_thermal': bool(active & 0x20), 'hardware_thermal': bool(active & 0x40), **snap}
+                        out.write(json.dumps(record) + '\n')
+                        out.flush()
+                        last_full[uuid] = now
+                        if is_thermal:
+                            print(json.dumps({**record, 'event': 'thermal_observed'}), flush=True)
+                            if args.abort_on_thermal:
+                                raise RuntimeError('Thermal bit observed; diagnostic workload must stop')
+                        if core is not None and core >= 80:
+                            raise RuntimeError('Observer saw conservative temperature cutoff; no workload was started')
+                    previous[uuid] = active
+                if now - heartbeat >= 30:
+                    print(json.dumps({'event': 'observing', 'elapsed': round(now - started), 'thermal_samples': {u: s['thermal_samples'] for u, s in counts.items()}}), flush=True)
+                    heartbeat = now
+                time.sleep(args.interval)
+            summary = {'event': 'complete', 'read_only': True, 'gpus': counts,
+                       'final': {uuid: snapshot(gpu) for uuid, gpu in handles}}
+            out.write(json.dumps(summary) + '\n')
+            print(json.dumps(summary), flush=True)
+    except Exception as exc:
+        with args.output.open('a', encoding='utf-8') as failure:
+            failure.write(json.dumps({'event': 'observer_failure', 'time': time.time(), 'error': str(exc)}) + '\n')
+        raise
+    finally:
+        shutdown()
+
+
+if __name__ == '__main__':
+    main()

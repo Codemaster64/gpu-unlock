@@ -1,0 +1,143 @@
+"""Bounded stock/unlocked comparison; uses the same installed CUDA runtime each time."""
+import argparse
+import csv
+import hashlib
+import io
+import json
+import os
+from pathlib import Path
+import statistics
+import subprocess
+import time
+
+TARGET_UUID = "GPU-TARGET"
+FIELDS = ["uuid", "name", "pci.bus_id", "power.limit", "temperature.gpu", "temperature.memory",
+          "utilization.gpu", "clocks.current.graphics", "clocks.current.memory",
+          "clocks_event_reasons.sw_thermal_slowdown", "clocks_event_reasons.hw_thermal_slowdown",
+          "clocks_event_reasons_counters.sw_thermal_slowdown",
+          "clocks_event_reasons_counters.hw_thermal_slowdown"]
+
+
+def telemetry():
+    raw = subprocess.check_output(["nvidia-smi", "--query-gpu=" + ",".join(FIELDS),
+                                   "--format=csv,noheader,nounits"], text=True)
+    return [dict(zip(FIELDS, (v.strip() for v in row)))
+            for row in csv.reader(io.StringIO(raw), skipinitialspace=True)]
+
+
+def checked_snapshot():
+    rows = telemetry()
+    targets = [r for r in rows if r["uuid"] == TARGET_UUID]
+    if len(targets) != 1 or "RTX 3080 Ti" not in targets[0]["name"]:
+        raise RuntimeError("Target identity mismatch; no benchmark permitted")
+    if float(targets[0]["power.limit"]) > 400.5:
+        raise RuntimeError("Target power limit exceeds the agreed 400 W baseline")
+    for row in rows:
+        if float(row["temperature.gpu"]) >= 80:
+            raise RuntimeError("Core temperature reached conservative stop point: " + row["name"])
+        mem = row["temperature.memory"]
+        if mem.replace(".", "", 1).isdigit() and float(mem) >= 90:
+            raise RuntimeError("Memory temperature reached conservative stop point")
+        for key in ("clocks_event_reasons.sw_thermal_slowdown", "clocks_event_reasons.hw_thermal_slowdown"):
+            if row[key] == "Active":
+                details = {"offending_gpu": row["uuid"], "field": key, "telemetry": rows}
+                raise RuntimeError("Thermal limiting observed; stop the workload; " + json.dumps(details))
+    return rows
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--phase", choices=["stock", "unlocked", "recovered"], required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--check-only", action="store_true")
+    args = parser.parse_args()
+    initial = checked_snapshot()
+    if args.check_only:
+        print(json.dumps({"guard": "PASS", "telemetry": initial}, indent=2))
+        return
+    os.environ["CUDA_VISIBLE_DEVICES"] = TARGET_UUID
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    # On this host cuBLASLt's AVX512 heuristic path raises CPU exception
+    # 0xc000001d at 4096x4096. NVIDIA's documented process-local mask avoids
+    # that CPU path; the paired repro succeeds with no GPU-setting change.
+    os.environ["CUBLASLT_DISABLE_CPU_INSTRUCTIONS_MASK"] = "1"
+    import torch
+    if not torch.cuda.is_available() or torch.cuda.device_count() != 1:
+        raise RuntimeError("A single visible CUDA device is required")
+    if "RTX 3080 Ti" not in torch.cuda.get_device_name(0):
+        raise RuntimeError("CUDA target mismatch")
+    free_bytes, _ = torch.cuda.mem_get_info()
+    if free_bytes < 2 * 1024**3:
+        raise RuntimeError("Insufficient free VRAM for the bounded benchmark")
+    torch.set_num_threads(4)
+    torch.backends.cuda.matmul.allow_fp16_reduced_precision_reduction = False
+    torch.backends.cuda.matmul.allow_bf16_reduced_precision_reduction = False
+    result = {"phase": args.phase, "torch": torch.__version__, "cuda_runtime": torch.version.cuda,
+              "cublaslt_disable_cpu_instructions_mask": "1",
+              "target_uuid": TARGET_UUID, "seed": 1729, "sizes": [4096, 8192],
+              "rounds": 3, "iterations_per_round": 10, "initial": initial,
+              "cases": [], "snapshots": [], "started": time.time()}
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+
+    def checkpoint():
+        snap = checked_snapshot()
+        result["snapshots"].append(snap)
+        args.output.write_text(json.dumps(result, indent=2), encoding="utf-8")
+
+    with torch.inference_mode():
+        for label, dtype in [("fp16_fp32acc", torch.float16), ("bf16_fp32acc", torch.bfloat16),
+                             ("tf32", torch.float32), ("fp32_control", torch.float32)]:
+            torch.backends.cuda.matmul.allow_tf32 = label == "tf32"
+            # Small integer matrices give an exactly representable correctness control.
+            gen = torch.Generator().manual_seed(1729)
+            small_a = torch.randint(-2, 3, (64, 64), generator=gen).to(dtype)
+            small_b = torch.randint(-2, 3, (64, 64), generator=gen).to(dtype)
+            reference = (small_a.double() @ small_b.double()).to(dtype)
+            got = (small_a.cuda() @ small_b.cuda()).cpu()
+            if not torch.equal(got, reference):
+                raise RuntimeError("Numerical correctness control failed: " + label)
+            checksum = hashlib.sha256(bytes(got.contiguous().view(torch.uint8).flatten().tolist())).hexdigest()
+            for n in (4096, 8192):
+                checkpoint()
+                torch.manual_seed(1729)
+                a = torch.randn((n, n), device="cuda", dtype=dtype)
+                b = torch.randn((n, n), device="cuda", dtype=dtype)
+                out = torch.empty_like(a)
+                for _ in range(4):
+                    torch.mm(a, b, out=out)
+                torch.cuda.synchronize()
+                rates = []
+                for _ in range(3):
+                    checkpoint()
+                    start, end = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+                    start.record()
+                    for _ in range(10):
+                        torch.mm(a, b, out=out)
+                    end.record()
+                    end.synchronize()
+                    seconds = start.elapsed_time(end) / 1000 / 10
+                    rates.append(2 * n**3 / seconds / 1e12)
+                if not bool(torch.isfinite(out).all().item()):
+                    raise RuntimeError("Nonfinite GEMM output: " + label)
+                case = {"precision": label, "n": n, "tflops": rates,
+                        "median_tflops": statistics.median(rates), "correctness_sha256": checksum}
+                result["cases"].append(case)
+                print(json.dumps(case), flush=True)
+                del a, b, out
+                torch.cuda.empty_cache()
+                checkpoint()
+    result["final"] = checked_snapshot()
+    for before, after in zip(result["initial"], result["final"]):
+        if before["uuid"] != after["uuid"]:
+            raise RuntimeError("GPU enumeration changed")
+        for field in FIELDS[-2:]:
+            if before[field].isdigit() and after[field].isdigit() and int(after[field]) > int(before[field]):
+                raise RuntimeError("Thermal counter increased during benchmark")
+    result["completed"] = time.time()
+    result["verdict"] = "PASS"
+    args.output.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    print("Bounded GPU benchmark: PASS", flush=True)
+
+
+if __name__ == "__main__":
+    main()

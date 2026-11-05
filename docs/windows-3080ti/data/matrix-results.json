@@ -1,0 +1,361 @@
+{
+  "date": "2026-11-05",
+  "status": "experimental; unlocked acceptance incomplete",
+  "comparison_power_limits_w": {
+    "target": 400,
+    "secondary": 110
+  },
+  "phases": {
+    "stock": {
+      "torch": "2.11.0+cu128",
+      "cuda_runtime": "12.8",
+      "cublaslt_disable_cpu_instructions_mask": "1",
+      "seed": 1729,
+      "sizes": [
+        4096,
+        8192
+      ],
+      "rounds": 3,
+      "iterations_per_round": 10,
+      "cases": [
+        {
+          "precision": "fp16_fp32acc",
+          "n": 4096,
+          "tflops": [
+            55.717436233400235,
+            53.075658126200196,
+            56.82376265037524
+          ],
+          "median_tflops": 55.717436233400235,
+          "correctness_sha256": "a27517c62163cf22f05314968bc36bc0dcadc965b109b68c40feee6f71cdf140"
+        },
+        {
+          "precision": "fp16_fp32acc",
+          "n": 8192,
+          "tflops": [
+            63.465171410943164,
+            67.86814118996993,
+            67.64750440148542
+          ],
+          "median_tflops": 67.64750440148542,
+          "correctness_sha256": "a27517c62163cf22f05314968bc36bc0dcadc965b109b68c40feee6f71cdf140"
+        },
+        {
+          "precision": "bf16_fp32acc",
+          "n": 4096,
+          "tflops": [
+            67.48678811440614,
+            67.44906263913981,
+            67.45965208711361
+          ],
+          "median_tflops": 67.45965208711361,
+          "correctness_sha256": "d0e2e715cb68060db897169293483513dc180535d4291e4cbf8d04a8349e2f65"
+        },
+        {
+          "precision": "bf16_fp32acc",
+          "n": 8192,
+          "tflops": [
+            67.55387830232911,
+            67.59002200447402,
+            67.59810639986499
+          ],
+          "median_tflops": 67.59002200447402,
+          "correctness_sha256": "d0e2e715cb68060db897169293483513dc180535d4291e4cbf8d04a8349e2f65"
+        },
+        {
+          "precision": "tf32",
+          "n": 4096,
+          "tflops": [
+            32.69167942117006,
+            33.245251868609756,
+            32.86684843832464
+          ],
+          "median_tflops": 32.86684843832464,
+          "correctness_sha256": "fdd122a3e70218afd735c149ef284769b25a1e029b8e706f90d6ad3ecf326f48"
+        },
+        {
+          "precision": "tf32",
+          "n": 8192,
+          "tflops": [
+            34.72162170996249,
+            34.57582407886274,
+            34.66353554176255
+          ],
+          "median_tflops": 34.66353554176255,
+          "correctness_sha256": "fdd122a3e70218afd735c149ef284769b25a1e029b8e706f90d6ad3ecf326f48"
+        },
+        {
+          "precision": "fp32_control",
+          "n": 4096,
+          "tflops": [
+            23.883857744348518,
+            23.503673146580187,
+            23.53174574348167
+          ],
+          "median_tflops": 23.53174574348167,
+          "correctness_sha256": "fdd122a3e70218afd735c149ef284769b25a1e029b8e706f90d6ad3ecf326f48"
+        },
+        {
+          "precision": "fp32_control",
+          "n": 8192,
+          "tflops": [
+            23.71196524061536,
+            23.71463568941068,
+            23.74578899811831
+          ],
+          "median_tflops": 23.71463568941068,
+          "correctness_sha256": "fdd122a3e70218afd735c149ef284769b25a1e029b8e706f90d6ad3ecf326f48"
+        }
+      ],
+      "verdict": "PASS",
+      "initial_telemetry": [
+        {
+          "name": "NVIDIA GeForce RTX 3080 Ti",
+          "power.limit": "400.00",
+          "temperature.gpu": "48",
+          "temperature.memory": "N/A",
+          "utilization.gpu": "41",
+          "clocks.current.graphics": "465",
+          "clocks.current.memory": "810",
+          "clocks_event_reasons.sw_thermal_slowdown": "Not Active",
+          "clocks_event_reasons.hw_thermal_slowdown": "Not Active",
+          "clocks_event_reasons_counters.sw_thermal_slowdown": "89011584",
+          "clocks_event_reasons_counters.hw_thermal_slowdown": "0"
+        },
+        {
+          "name": "NVIDIA RTX A4000",
+          "power.limit": "110.00",
+          "temperature.gpu": "55",
+          "temperature.memory": "N/A",
+          "utilization.gpu": "35",
+          "clocks.current.graphics": "750",
+          "clocks.current.memory": "5001",
+          "clocks_event_reasons.sw_thermal_slowdown": "Not Active",
+          "clocks_event_reasons.hw_thermal_slowdown": "Not Active",
+          "clocks_event_reasons_counters.sw_thermal_slowdown": "0",
+          "clocks_event_reasons_counters.hw_thermal_slowdown": "0"
+        }
+      ],
+      "duration_seconds": 6.898068904876709
+    },
+    "unlocked": {
+      "torch": "2.11.0+cu128",
+      "cuda_runtime": "12.8",
+      "cublaslt_disable_cpu_instructions_mask": "1",
+      "seed": 1729,
+      "sizes": [
+        4096,
+        8192
+      ],
+      "rounds": 3,
+      "iterations_per_round": 10,
+      "cases": [
+        {
+          "precision": "fp16_fp32acc",
+          "n": 4096,
+          "tflops": [
+            119.12463783921908,
+            117.46855139604597,
+            126.41775205543678
+          ],
+          "median_tflops": 119.12463783921908,
+          "correctness_sha256": "a27517c62163cf22f05314968bc36bc0dcadc965b109b68c40feee6f71cdf140"
+        },
+        {
+          "precision": "fp16_fp32acc",
+          "n": 8192,
+          "tflops": [
+            126.09262979706814,
+            126.12818618501561,
+            126.95434968022582
+          ],
+          "median_tflops": 126.12818618501561,
+          "correctness_sha256": "a27517c62163cf22f05314968bc36bc0dcadc965b109b68c40feee6f71cdf140"
+        },
+        {
+          "precision": "bf16_fp32acc",
+          "n": 4096,
+          "tflops": [
+            144.83407199218914,
+            144.1356120920893,
+            144.35457126137862
+          ],
+          "median_tflops": 144.35457126137862,
+          "correctness_sha256": "d0e2e715cb68060db897169293483513dc180535d4291e4cbf8d04a8349e2f65"
+        },
+        {
+          "precision": "bf16_fp32acc",
+          "n": 8192,
+          "tflops": [
+            128.57028237237031,
+            128.70280802061373,
+            133.30955543391562
+          ],
+          "median_tflops": 128.70280802061373,
+          "correctness_sha256": "d0e2e715cb68060db897169293483513dc180535d4291e4cbf8d04a8349e2f65"
+        }
+      ],
+      "verdict": "INCOMPLETE; thermal flag stopped suite",
+      "initial_telemetry": [
+        {
+          "name": "NVIDIA GeForce RTX 3080 Ti",
+          "power.limit": "400.00",
+          "temperature.gpu": "43",
+          "temperature.memory": "N/A",
+          "utilization.gpu": "15",
+          "clocks.current.graphics": "210",
+          "clocks.current.memory": "405",
+          "clocks_event_reasons.sw_thermal_slowdown": "Not Active",
+          "clocks_event_reasons.hw_thermal_slowdown": "Not Active",
+          "clocks_event_reasons_counters.sw_thermal_slowdown": "25242082",
+          "clocks_event_reasons_counters.hw_thermal_slowdown": "0"
+        },
+        {
+          "name": "NVIDIA RTX A4000",
+          "power.limit": "110.00",
+          "temperature.gpu": "47",
+          "temperature.memory": "N/A",
+          "utilization.gpu": "30",
+          "clocks.current.graphics": "435",
+          "clocks.current.memory": "810",
+          "clocks_event_reasons.sw_thermal_slowdown": "Not Active",
+          "clocks_event_reasons.hw_thermal_slowdown": "Not Active",
+          "clocks_event_reasons_counters.sw_thermal_slowdown": "0",
+          "clocks_event_reasons_counters.hw_thermal_slowdown": "0"
+        }
+      ]
+    },
+    "recovered": {
+      "torch": "2.11.0+cu128",
+      "cuda_runtime": "12.8",
+      "cublaslt_disable_cpu_instructions_mask": "1",
+      "seed": 1729,
+      "sizes": [
+        4096,
+        8192
+      ],
+      "rounds": 3,
+      "iterations_per_round": 10,
+      "cases": [
+        {
+          "precision": "fp16_fp32acc",
+          "n": 4096,
+          "tflops": [
+            54.10477894045545,
+            55.354292388529075,
+            54.00029094728107
+          ],
+          "median_tflops": 54.10477894045545,
+          "correctness_sha256": "a27517c62163cf22f05314968bc36bc0dcadc965b109b68c40feee6f71cdf140"
+        },
+        {
+          "precision": "fp16_fp32acc",
+          "n": 8192,
+          "tflops": [
+            63.21520313929139,
+            67.69441801893547,
+            67.48594116569882
+          ],
+          "median_tflops": 67.48594116569882,
+          "correctness_sha256": "a27517c62163cf22f05314968bc36bc0dcadc965b109b68c40feee6f71cdf140"
+        },
+        {
+          "precision": "bf16_fp32acc",
+          "n": 4096,
+          "tflops": [
+            66.28363336395698,
+            63.453915682840936,
+            66.35244494080514
+          ],
+          "median_tflops": 66.28363336395698,
+          "correctness_sha256": "d0e2e715cb68060db897169293483513dc180535d4291e4cbf8d04a8349e2f65"
+        },
+        {
+          "precision": "bf16_fp32acc",
+          "n": 8192,
+          "tflops": [
+            67.50290947434681,
+            69.59206546501379,
+            69.3528602300982
+          ],
+          "median_tflops": 69.3528602300982,
+          "correctness_sha256": "d0e2e715cb68060db897169293483513dc180535d4291e4cbf8d04a8349e2f65"
+        },
+        {
+          "precision": "tf32",
+          "n": 4096,
+          "tflops": [
+            32.417684197811845,
+            33.348634001529085,
+            32.66447677019766
+          ],
+          "median_tflops": 32.66447677019766,
+          "correctness_sha256": "fdd122a3e70218afd735c149ef284769b25a1e029b8e706f90d6ad3ecf326f48"
+        },
+        {
+          "precision": "tf32",
+          "n": 8192,
+          "tflops": [
+            34.50019019208521,
+            34.587630749751014,
+            34.06744882167792
+          ],
+          "median_tflops": 34.50019019208521,
+          "correctness_sha256": "fdd122a3e70218afd735c149ef284769b25a1e029b8e706f90d6ad3ecf326f48"
+        },
+        {
+          "precision": "fp32_control",
+          "n": 4096,
+          "tflops": [
+            23.959750676580626,
+            24.435210733407,
+            23.959322069502818
+          ],
+          "median_tflops": 23.959750676580626,
+          "correctness_sha256": "fdd122a3e70218afd735c149ef284769b25a1e029b8e706f90d6ad3ecf326f48"
+        },
+        {
+          "precision": "fp32_control",
+          "n": 8192,
+          "tflops": [
+            24.28554896135804,
+            24.14188708279742,
+            24.03203752922659
+          ],
+          "median_tflops": 24.14188708279742,
+          "correctness_sha256": "fdd122a3e70218afd735c149ef284769b25a1e029b8e706f90d6ad3ecf326f48"
+        }
+      ],
+      "verdict": "PASS",
+      "initial_telemetry": [
+        {
+          "name": "NVIDIA GeForce RTX 3080 Ti",
+          "power.limit": "400.00",
+          "temperature.gpu": "47",
+          "temperature.memory": "N/A",
+          "utilization.gpu": "42",
+          "clocks.current.graphics": "705",
+          "clocks.current.memory": "810",
+          "clocks_event_reasons.sw_thermal_slowdown": "Not Active",
+          "clocks_event_reasons.hw_thermal_slowdown": "Not Active",
+          "clocks_event_reasons_counters.sw_thermal_slowdown": "3528543",
+          "clocks_event_reasons_counters.hw_thermal_slowdown": "0"
+        },
+        {
+          "name": "NVIDIA RTX A4000",
+          "power.limit": "110.00",
+          "temperature.gpu": "47",
+          "temperature.memory": "N/A",
+          "utilization.gpu": "34",
+          "clocks.current.graphics": "600",
+          "clocks.current.memory": "5001",
+          "clocks_event_reasons.sw_thermal_slowdown": "Not Active",
+          "clocks_event_reasons.hw_thermal_slowdown": "Not Active",
+          "clocks_event_reasons_counters.sw_thermal_slowdown": "0",
+          "clocks_event_reasons_counters.hw_thermal_slowdown": "0"
+        }
+      ],
+      "duration_seconds": 7.416928052902222
+    }
+  }
+}

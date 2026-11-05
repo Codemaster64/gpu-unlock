@@ -1,5 +1,7 @@
 ![gpu-unlock: full-speed tensor cores for GeForce RTX](assets/banner.svg)
 
+> **This fork: Windows 11 RTX 3080 Ti field report.** [Read the experiment, reproduction checklist and diagnostic references](docs/windows-3080ti/README.md). A separate pinned UEFI project produced approximately 1.9x completed FP16/BF16 matrix throughput, then a thermal flag stopped testing. **Unlocked LLM performance and daily stability remain unvalidated.** The original Linux implementation and its documentation continue below; this fork does not turn them into a Windows installer.
+
 ### Your GeForce runs AI at half speed. This fixes it.
 
 ![Version](https://img.shields.io/badge/version-2.0.0-76b900)![RTX 20 | 30 | 40](https://img.shields.io/badge/GeForce-RTX%2020%20%7C%2030%20%7C%2040-76b900?logo=nvidia&logoColor=white)![Linux](https://img.shields.io/badge/platform-Linux-informational?logo=linux&logoColor=white)![License GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue)![Stars](https://img.shields.io/github/stars/Zagitta/gpu-unlock?style=flat&color=yellow)

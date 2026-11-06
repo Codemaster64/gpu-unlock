@@ -54,11 +54,14 @@ Dense matrix multiply (FP32 accumulation, stock power limits):
 | RTX 3060 Ti | 37 TFLOPS | 68 TFLOPS | +82% |
 | RTX 3070 | 40 TFLOPS | 72 TFLOPS | +81% |
 | RTX 3080 10 GB | 65 TFLOPS | 113 TFLOPS | +73% |
+| [RTX 3080 Ti 12 GB (Windows, 400 W)](docs/windows-3080ti/REPORT.md#result) | 67.59 TFLOPS | 128.70 TFLOPS | +90.4% (partial suite) |
 | RTX 3090 | 75 TFLOPS | 125 TFLOPS | +65% |
 | RTX 3090 Ti (450 W) | 88 TFLOPS | 157 TFLOPS | +80% |
 | RTX 4070 Ti | 81 TFLOPS | 150 TFLOPS | +84% |
 | RTX 4080 | 104 TFLOPS | 193 TFLOPS | +87% |
 | RTX 4090 | 165 TFLOPS | 329 TFLOPS | +100% (peak MMA rate) |
+
+The Windows RTX 3080 Ti row is our 8192 x 8192 BF16 result, using medians of three measured rounds and matched target/secondary limits of 400/110 W. FP16 measured 67.65 → 126.13 TFLOPS (+86.4%). A thermal flag stopped the suite before TF32/plain FP32 controls; unlocked LLM performance and sustained stability were not tested. After cold-power rollback, BF16 returned to 69.35 TFLOPS and FP16 to 67.49 TFLOPS. See the [full before/after table and limitations](docs/windows-3080ti/REPORT.md#result).
 
 The RTX 4090 runs out of power before it runs out of tensor cores, so large
 GEMMs at stock power limits gain much less than the peak rate suggests.
@@ -83,6 +86,20 @@ numbers come from the [compatibility reports](https://github.com/Zagitta/gpu-unl
 users have filed, where you can find full benchmark details and post your own.
 
 ---
+
+## How we tested on Windows
+
+Our Windows 11 experiment used [physicsdolphin/nv-uefi-unlocker v2.1.10](https://github.com/physicsdolphin/nv-uefi-unlocker/releases/tag/v2.1.10), commit `fbdcc5b6e7974864d867f8c878813257b7ab7ca5`, on external FAT32 USB media. **We did not install the Linux module on Windows or flash the GPU's VBIOS.** The UEFI program runs before Windows, performs the GPU transaction, then hands off to Windows Boot Manager and the ordinary NVIDIA driver.
+
+1. **Establish recovery and stock settings.** We checked both GPUs, power delivery, effective tuning/power limits and a working alternate display. Existing tuning profiles were backed up, and automatic tuning was disabled for controlled comparisons.
+2. **Run a separate read-only preflight.** We pinned the source/release hashes, passed host tests, built a read-only EFI without the `tx` feature, and verified enumeration and Windows handoff before using a transaction build. Removing a firmware payload does not make a transaction build read-only.
+3. **Prepare a manual, targeted USB boot.** We generated the GA102 assets using the pinned project's workflow and verified the eight runtime-file hashes. The USB-root `tx-select-bdf.txt` contained the freshly checked 3080 Ti PCI address. No unattended activation marker or permanent Windows boot configuration was installed. **In this version, a missing selector defaults to all supported GPUs**, so this file is not a fail-closed exclusion guarantee for the A4000.
+4. **Boot once and verify before loading the GPU.** The owner selected the USB's UEFI entry through the motherboard's one-time menu and manually confirmed the transaction. After Windows loaded, we preserved the new log, checked the selected target, device/display health and driver events, rechecked comparison limits, and monitored both cards with HWMonitor and NVIDIA telemetry. We repeated bounded matrix tests; a thermal flag stopped the unlocked suite before any LLM test.
+5. **Verify rollback.** The owner shut down, removed PSU power until the GPU lost power, removed the USB and booted ordinary Windows. Complete stock compute/inference checks passed afterwards. This is the recovery observed on our machine, not a guarantee for every firmware failure.
+
+The measured unlock was cleared by full GPU power loss. In this external-USB arrangement it requires the pre-Windows UEFI stage again after such a loss; it does not require a reboot for every application while the state survives. No automatic daily activation or sleep/resume behavior was validated. The separate Windows `ssdiag --reapply` utility only repairs selectors while the required gate remains open; it cannot replace the initial cold-start unlock and was not installed here. The compute unlock also does not select which GPU a game uses.
+
+For the exact media layout, prerequisites, hashes, monitoring limits and recovery considerations, follow our [Windows reproduction checklist](docs/windows-3080ti/REPRODUCING.md) and [full report](docs/windows-3080ti/REPORT.md). The following installation section is the original **Linux** procedure.
 
 ## How to install
 

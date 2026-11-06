@@ -1,6 +1,6 @@
 # Reproducing the investigation
 
-This is the order of checks used for one experimental system, with the failures retained. **It is not a validated daily-use recipe or a promise of hardware safety.** Read the [result and limitations](REPORT.md) before preparing boot media. The thermal-flag explanation and unlocked application acceptance are still outstanding.
+This is the order of checks used for one experimental system, with failures retained. **It is not a validated daily-use recipe or a promise of hardware safety.** Read the [result and limitations](REPORT.md) before preparing media. A later bounded unlocked application check passed, but the thermal-flag explanation and sustained/daily acceptance remain outstanding.
 
 ## 1. Establish your own target and recovery path
 
@@ -74,7 +74,7 @@ After Windows returns, archive the **new** transaction log before another boot. 
 
 Then repeat only the bounded, supervised matrix suite. On any stop, preserve the offending GPU/field/readings and stop further unlocked testing in that powered session. Do not jump directly to an LLM or ten-minute workload to see whether it goes away.
 
-Only a clean complete compute/numerical pass would justify a matched application test, then a separately supervised sustained test. **This experiment stopped before those stages.** The archived supervisor's twelve CPU-only tests do not certify the GPU or prove that its latest revision has passed an unlocked hardware run.
+Only a clean complete compute/numerical pass justifies a matched application test, then a separately supervised sustained test. The initial attempt stopped early; the later 6 November attempt completed the full matrix supervisor and bounded synthetic LLM check. A sustained run remains outstanding. The archived twelve CPU-only tests do not certify the GPU; consult the actual hardware evidence and its stated limits.
 
 ## 6. Demonstrate rollback and restore ordinary settings
 
@@ -84,7 +84,7 @@ Restore any temporary supported power limit to its previously recorded value aft
 
 ## Booting, Windows repair and gaming
 
-The measured unlock is volatile: full card power loss cleared it. In the current external-USB arrangement, activation after such a loss requires the pre-Windows UEFI stage again; it does not require a new boot for each app launch while the state survives. Sleep/resume and resets can behave differently and were not validated here. No automatic USB or internal boot installation was accepted in this experiment.
+The measured unlock is volatile: full card power loss cleared the initial attempt. The external-USB arrangement needs the pre-Windows stage after such a loss, not for each app launch while state survives. Sleep/resume and resets remain unvalidated. The owner later requested and enabled a local custom automatic USB controller; its successful bounded result is documented, but its failure-shutdown/setup path and sustained use are not validated. It is not distributed as an installer here. No internal ESP/BCD/BootOrder installation was made.
 
 The separate Windows `ssdiag --reapply` tool can repair selectors only while the necessary FEAT PLM gate remains open; it cannot open the gate after cold power loss. It uses a physical-memory kernel driver and was **not installed or tested here**. See the [tagged ssdiag documentation](https://github.com/physicsdolphin/nv-uefi-unlocker/blob/v2.1.10/tools/ssdiag/README.md) and [FAQ](https://github.com/physicsdolphin/nv-uefi-unlocker/blob/v2.1.10/docs/faq.en.md) rather than assuming it is an ordinary Windows startup replacement.
 

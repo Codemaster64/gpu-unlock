@@ -1,6 +1,6 @@
 # Historical diagnostic sources
 
-These are sanitized snapshots of the investigation scripts, provided as `.py.txt` **reference text**, not a supported portable tool or installer. They retain historical machine-specific assumptions. They have not been made generally configurable or validated on another system. The latest supervision changes have CPU-only coverage but no subsequent unlocked hardware run.
+These are sanitized snapshots of the investigation scripts, provided as `.py.txt` **reference text**, not a supported portable tool or installer. They retain machine-specific assumptions and have not been made generally configurable or validated on another system. The supervision changes have CPU-only coverage and were used in the bounded 6 November unlocked hardware run; this does not certify general or daily reliability.
 
 | File | Purpose and limitations |
 | --- | --- |
@@ -22,7 +22,7 @@ python -m unittest -v test_diagnostic_guards
 
 This tests stop logic with synthetic telemetry and simulated child processes. It does not launch an observer, GPU matrix operation, LLM server, firmware program or administrative helper. The publication was checked this way with 12 tests passing.
 
-The matrix snapshots come from the already tested investigation code; placeholder substitutions change device/path literals, not thresholds, sizes or numerical operations. No post-publication adaptation has been hardware validated. All future hardware testing must follow the [reproduction gates](../REPRODUCING.md), preserve supervision, and verify fresh device identity and power settings.
+The matrix snapshots come from the tested investigation code; placeholder substitutions change device/path literals, not thresholds, sizes or numerical operations. The private machine-specific originals were used again on 6 November; these public placeholders were not executed on a different system. Follow the [reproduction gates](../REPRODUCING.md), preserve supervision, and verify fresh device identity and power settings before any future hardware test.
 
 ## Diagnostics that must not be overinterpreted
 

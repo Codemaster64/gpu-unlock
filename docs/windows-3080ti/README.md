@@ -17,6 +17,21 @@ On 5 November 2026, one Gigabyte RTX 3080 Ti 12 GB was tested with a separate, v
 
 These are matrix-throughput measurements, not an LLM speedup. The thermal stop leaves workload acceptance incomplete. [Raw measured rounds](data/matrix-results.json) and the [full report](REPORT.md#result) document the conditions and limitations.
 
+## 6 November stock control
+
+A fresh stock run after a successful local custom **read-only** USB probe completed all eight matrix cases. The supervised capture failed when direct NVML reported software thermal limiting **0.37 seconds after the benchmark marked itself complete**. No unlocked or LLM test followed.
+
+8192 x 8192 matrix multiplication, median TFLOPS, at matched 400/110 W limits:
+
+| Precision | Stock, 6 November | Unlocked, 6 November | Overall capture |
+| --- | ---: | --- | --- |
+| FP16, FP32 accumulation | 57.64 | not run | failed thermal supervision |
+| BF16, FP32 accumulation | 58.31 | not run | failed thermal supervision |
+| TF32 | 29.55 | not run | failed thermal supervision |
+| Plain FP32 control | 21.48 | not run | failed thermal supervision |
+
+The event was on the 3080 Ti: raw mask `0x24`, software thermal active, hardware thermal inactive, sampled core 57 C. HWMonitor 1.59 session maxima were 62.7 C core / 60 C memory / 73.9 C hotspot, with Temperature Limit maximum 0. These differing observations do not prove harmlessness or actual VRAM overheating. The A4000 was restored to 140 W after the test. Keep this run separate from the 5 November comparison above; do not calculate a gain by pairing dates. [Full follow-up](REPORT.md#6-november-stock-control-follow-up) · [Raw rounds and sanitized event](data/2026-11-06-stock-control.json).
+
 ## Files and implementation
 
 This fork adds the experiment record to [Zagitta/gpu-unlock](https://github.com/Zagitta/gpu-unlock). **It does not port the Linux module to Windows.** The actual Windows boot experiment used [physicsdolphin/nv-uefi-unlocker v2.1.10](https://github.com/physicsdolphin/nv-uefi-unlocker/releases/tag/v2.1.10), source commit `fbdcc5b6e7974864d867f8c878813257b7ab7ca5`.

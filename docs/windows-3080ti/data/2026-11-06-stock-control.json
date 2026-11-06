@@ -1,0 +1,208 @@
+{
+  "date": "2026-11-06",
+  "state": "STOCK; actual boot used a compile-time non-TX custom probe",
+  "matrix_verdict": "PASS",
+  "overall_supervised_verdict": "FAIL",
+  "reason": "Raw software thermal event in post-load observation; no further workloads started.",
+  "unlocked_comparison": "NOT RUN; do not pair this stock run with another date to calculate a gain.",
+  "runtime": {
+    "torch": "2.11.0+cu128",
+    "cuda_runtime": "12.8",
+    "cublaslt_disable_cpu_instructions_mask": "1",
+    "seed": 1729,
+    "sizes": [
+      4096,
+      8192
+    ],
+    "rounds": 3,
+    "iterations_per_round": 10
+  },
+  "comparison_power_limits_w": {
+    "target": 400,
+    "secondary": 110
+  },
+  "cases": [
+    {
+      "precision": "fp16_fp32acc",
+      "n": 4096,
+      "tflops": [
+        47.21985866330044,
+        47.54772882262451,
+        57.152841634806634
+      ],
+      "median_tflops": 47.54772882262451,
+      "correctness_sha256": "a27517c62163cf22f05314968bc36bc0dcadc965b109b68c40feee6f71cdf140"
+    },
+    {
+      "precision": "fp16_fp32acc",
+      "n": 8192,
+      "tflops": [
+        58.68211501274618,
+        54.39890041847478,
+        57.639444388659875
+      ],
+      "median_tflops": 57.639444388659875,
+      "correctness_sha256": "a27517c62163cf22f05314968bc36bc0dcadc965b109b68c40feee6f71cdf140"
+    },
+    {
+      "precision": "bf16_fp32acc",
+      "n": 4096,
+      "tflops": [
+        55.93104590894356,
+        54.238149131684885,
+        58.26931920703527
+      ],
+      "median_tflops": 55.93104590894356,
+      "correctness_sha256": "d0e2e715cb68060db897169293483513dc180535d4291e4cbf8d04a8349e2f65"
+    },
+    {
+      "precision": "bf16_fp32acc",
+      "n": 8192,
+      "tflops": [
+        58.26750045337764,
+        58.30645884776889,
+        59.61291513821329
+      ],
+      "median_tflops": 58.30645884776889,
+      "correctness_sha256": "d0e2e715cb68060db897169293483513dc180535d4291e4cbf8d04a8349e2f65"
+    },
+    {
+      "precision": "tf32",
+      "n": 4096,
+      "tflops": [
+        28.00129372858415,
+        28.85163766655728,
+        28.420906794427996
+      ],
+      "median_tflops": 28.420906794427996,
+      "correctness_sha256": "fdd122a3e70218afd735c149ef284769b25a1e029b8e706f90d6ad3ecf326f48"
+    },
+    {
+      "precision": "tf32",
+      "n": 8192,
+      "tflops": [
+        30.764125986132,
+        28.430162339014824,
+        29.547431911081457
+      ],
+      "median_tflops": 29.547431911081457,
+      "correctness_sha256": "fdd122a3e70218afd735c149ef284769b25a1e029b8e706f90d6ad3ecf326f48"
+    },
+    {
+      "precision": "fp32_control",
+      "n": 4096,
+      "tflops": [
+        21.10175639417685,
+        21.06466525531073,
+        22.366394521089564
+      ],
+      "median_tflops": 21.10175639417685,
+      "correctness_sha256": "fdd122a3e70218afd735c149ef284769b25a1e029b8e706f90d6ad3ecf326f48"
+    },
+    {
+      "precision": "fp32_control",
+      "n": 8192,
+      "tflops": [
+        21.483214787482872,
+        21.585531506770113,
+        21.43920418144728
+      ],
+      "median_tflops": 21.483214787482872,
+      "correctness_sha256": "fdd122a3e70218afd735c149ef284769b25a1e029b8e706f90d6ad3ecf326f48"
+    }
+  ],
+  "matrix_duration_seconds": 7.710424423217773,
+  "observer_interval_seconds": 0.01,
+  "observer_requested_seconds": 25,
+  "thermal_event": {
+    "elapsed": 12.423136200000044,
+    "mask": 36,
+    "software_thermal": true,
+    "hardware_thermal": false,
+    "core_c": {
+      "status": 0,
+      "value": 57
+    },
+    "pstate": {
+      "status": 0,
+      "value": 0
+    },
+    "power_mw": {
+      "status": 0,
+      "value": 308115
+    },
+    "graphics_mhz": {
+      "status": 0,
+      "value": 2025
+    },
+    "memory_mhz": {
+      "status": 0,
+      "value": 9701
+    },
+    "utilization": {
+      "status": 0,
+      "gpu": 20,
+      "memory": 6
+    },
+    "mask_hex": "0x24",
+    "seconds_after_benchmark_marked_complete": 0.369579553604126,
+    "field_values": {
+      "74": {
+        "initial_status": 0,
+        "initial_value": 10141921664,
+        "event_status": 0,
+        "event_value": 10161928000
+      },
+      "75": {
+        "initial_status": 0,
+        "initial_value": 0,
+        "event_status": 0,
+        "event_value": 0
+      },
+      "82": {
+        "initial_status": 3,
+        "initial_value": null,
+        "event_status": 3,
+        "event_value": null
+      },
+      "269": {
+        "initial_status": 0,
+        "initial_value": 6876581280,
+        "event_status": 0,
+        "event_value": 6876581280
+      },
+      "270": {
+        "initial_status": 0,
+        "initial_value": 0,
+        "event_status": 0,
+        "event_value": 0
+      }
+    }
+  },
+  "children_exited": true,
+  "sampled_target_max_core_c": 66,
+  "hwmonitor": {
+    "version": "1.59",
+    "session_max_core_c": 62.7,
+    "session_max_memory_c": 60,
+    "session_max_hotspot_c": 73.9,
+    "temperature_limit_max": 0,
+    "note": "Session maxima include earlier desktop activity; distinct from instantaneous NVML event."
+  },
+  "custom_probe": {
+    "transaction_compiled": false,
+    "pinned_assets_verified": 7,
+    "windows_startimage_log_elapsed_ms": 3573,
+    "setup_support_advertised": true,
+    "actual_shutdown_and_next_power_setup_tested": false,
+    "note": "Local custom controller; its transaction build was not installed or enabled."
+  },
+  "post_test": {
+    "target_power_limit_w": 400,
+    "secondary_restored_power_limit_w": 140,
+    "both_nvidia_device_error_codes": 0,
+    "new_nvidia_display_whea_events": 0,
+    "no_unlocked_or_llm_workload_started": true,
+    "interpretation": "Flag occurrence without this boot applying the unlock does not prove a harmless bug or rule out a thermal condition."
+  }
+}

@@ -63,6 +63,8 @@ Dense matrix multiply (FP32 accumulation, stock power limits):
 
 The Windows RTX 3080 Ti row is our 8192 x 8192 BF16 result, using medians of three measured rounds and matched target/secondary limits of 400/110 W. FP16 measured 67.65 → 126.13 TFLOPS (+86.4%). A thermal flag stopped the suite before TF32/plain FP32 controls; unlocked LLM performance and sustained stability were not tested. After cold-power rollback, BF16 returned to 69.35 TFLOPS and FP16 to 67.49 TFLOPS. See the [full before/after table and limitations](docs/windows-3080ti/REPORT.md#result).
 
+A [6 November stock-control follow-up](docs/windows-3080ti/README.md#6-november-stock-control) completed all eight matrix cases but failed continuous thermal supervision on a captured software thermal flag after the workload. Its separately dated table is retained without mixing it into the before/after gains above.
+
 The RTX 4090 runs out of power before it runs out of tensor cores, so large
 GEMMs at stock power limits gain much less than the peak rate suggests.
 
